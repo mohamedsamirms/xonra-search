@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xonra Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --panel-outer: #565656;
+    --panel-inner: #7b7b7b;
+    --chamfer: 18px;
+    --chamfer-sm: 12px;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: 'Silkscreen', monospace;
+  }
+
+  body {
+    background-image: url('/static/images/background.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-color: #000;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  /* Cut top-left + bottom-right corners, like the mockup's search bar / cards */
+  .chamfer {
+    clip-path: polygon(
+      var(--chamfer) 0,
+      100% 0,
+      100% calc(100% - var(--chamfer)),
+      calc(100% - var(--chamfer)) 100%,
+      0 100%,
+      0 var(--chamfer)
+    );
+  }
+  .chamfer-sm {
+    clip-path: polygon(
+      var(--chamfer-sm) 0,
+      100% 0,
+      100% calc(100% - var(--chamfer-sm)),
+      calc(100% - var(--chamfer-sm)) 100%,
+      0 100%,
+      0 var(--chamfer-sm)
+    );
+  }
+
+  #app-container {
+    background: var(--panel-outer);
+    width: 100%;
+    max-width: 880px;
+    border-radius: 28px;
+    padding: 40px;
+    transition: max-width .4s cubic-bezier(.25,1.1,.4,1), padding .4s ease;
+    position: relative;
+  }
+
+  #app-container.is-results {
+    max-width: 1040px;
+    padding: 24px;
+  }
+
+  #hero-block {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    justify-content: center;
+    margin-bottom: 32px;
+    transition: opacity .3s ease, margin .3s ease;
+  }
+  #hero-block img { height: 56px; width: auto; }
+  #hero-block h1 {
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+  }
+
+  #app-container.is-results #hero-block {
+    justify-content: flex-start;
+    margin-bottom: 22px;
+  }
+  #app-container.is-results #hero-block img { height: 40px; }
+  #app-container.is-results #hero-block h1 { display: none; }
+
+  #top-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  #app-container.is-results #top-row {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+  }
+  #app-container:not(.is-results) #top-row {
+    flex-direction: column;
+  }
+
+  .search-input-wrap {
+    background: var(--panel-inner);
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 16px 22px;
+    width: 100%;
+  }
+  #search-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #e6e6e6;
+    font-family: 'Silkscreen', monospace;
+    font-weight: 700;
+    font-size: 18px;
+    flex: 1;
+  }
+  #search-input::placeholder { color: #d8d8d8; opacity: 0.9; }
+
+  .social-icons {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .social-icons img { width: 22px; height: 22px; opacity: 0.85; }
+  .social-icons img:hover { opacity: 1; }
+
+  #social-corner {
+    position: absolute;
+    transition: top .4s ease, bottom .4s ease, right .4s ease;
+  }
+  #app-container:not(.is-results) #social-corner {
+    bottom: 24px;
+    right: 32px;
+  }
+  #app-container.is-results #social-corner {
+    top: 30px;
+    right: 24px;
+  }
+  #app-container.is-results #top-row { padding-right: 90px; }
+
+  .result-card {
+    background: var(--panel-inner);
+    padding: 18px 24px;
+    margin-bottom: 16px;
+    opacity: 0;
+    transform: translateY(6px);
+    animation: cardIn .3s ease forwards;
+  }
+  @keyframes cardIn { to { opacity: 1; transform: translateY(0); } }
+
+  .result-url-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .result-url-row img { width: 16px; height: 16px; }
+  .result-url-row span { font-size: 12px; color: #e2e2e2; font-weight: 700; }
+
+  .result-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .result-title:hover { text-decoration: underline; }
+
+  .result-snippet {
+    font-size: 13px;
+    color: #e2e2e2;
+    line-height: 1.5;
+  }
+
+  #results-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+  #results-scroll::-webkit-scrollbar { width: 8px; }
+  #results-scroll::-webkit-scrollbar-thumb { background: var(--panel-inner); border-radius: 8px; }
+
+  .skeleton-card {
+    background: var(--panel-inner);
+    height: 92px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+    animation: pulse 1.2s ease infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.25; } }
+
+  #pagination button {
+    background: var(--panel-inner);
+    font-family: 'Silkscreen', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    color: #eee;
+    padding: 10px 20px;
+    border: none;
+  }
+  #pagination button:disabled { opacity: 0.35; }
+
+  #meta-line { font-size: 12px; color: #d8d8d8; margin-bottom: 14px; }
+
+  #error-box, #empty-box {
+    background: var(--panel-inner);
+    padding: 20px;
+    font-size: 13px;
+    color: #eee;
+  }
+</style>
+</head>
+<body>
+
+  <div id="app-container">
+
+    <div id="top-row">
+      <div id="hero-block">
+        <img src="/static/icons/logo.png" alt="Xonra">
+        <h1>,Privacy matters</h1>
+      </div>
+
+      <!-- Search bar: centered under the logo before a search, moves into the top row once results are showing -->
+      <form id="search-form-hero" class="chamfer search-input-wrap">
+        <input id="search-input" type="text" autocomplete="off" placeholder="Search">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e6e6e6" stroke-width="2.5" stroke-linecap="round">
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </form>
+    </div>
+
+    <div id="social-corner" class="social-icons">
+      <a href="#" target="_blank" rel="noopener"><img src="/static/icons/discord.png" alt="Discord"></a>
+      <a href="#" target="_blank" rel="noopener"><img src="/static/icons/github.png" alt="GitHub"></a>
+    </div>
+
+    <div id="meta-line" class="hidden"></div>
+
+    <div id="results-scroll">
+      <div id="results" class="hidden"></div>
+      <div id="skeletons" class="hidden"></div>
+      <div id="error-box" class="chamfer hidden"></div>
+      <div id="empty-box" class="chamfer hidden">No results found. Try a different search.</div>
+    </div>
+
+    <div id="pagination" class="hidden flex items-center justify-between mt-2">
+      <button id="prev-btn" class="chamfer-sm">&larr; Prev</button>
+      <button id="next-btn" class="chamfer-sm">Next &rarr;</button>
+    </div>
+
+  </div>
+
+<script>
+  const container = document.getElementById('app-container');
+  const heroForm = document.getElementById('search-form-hero');
+  const input = document.getElementById('search-input');
+  const resultsEl = document.getElementById('results');
+  const skeletonsEl = document.getElementById('skeletons');
+  const errorBox = document.getElementById('error-box');
+  const emptyBox = document.getElementById('empty-box');
+  const metaLine = document.getElementById('meta-line');
+  const pagination = document.getElementById('pagination');
+  const prevBtn = document.getElementById('prev-btn');
+  const nextBtn = document.getElementById('next-btn');
+  const resultsScroll = document.getElementById('results-scroll');
+
+  let currentQuery = '';
+
+  function hideAllStates() {
+    resultsEl.classList.add('hidden');
+    skeletonsEl.classList.add('hidden');
+    errorBox.classList.add('hidden');
+    emptyBox.classList.add('hidden');
+    metaLine.classList.add('hidden');
+    pagination.classList.add('hidden');
+  }
+
+  function showSkeletons() {
+    hideAllStates();
+    skeletonsEl.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const s = document.createElement('div');
+      s.className = 'skeleton-card';
+      skeletonsEl.appendChild(s);
+    }
+    skeletonsEl.classList.remove('hidden');
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.innerText = str || '';
+    return d.innerHTML;
+  }
+
+  function faviconFor(link) {
+    try {
+      const host = new URL(link).hostname;
+      return `https://www.google.com/s2/favicons?sz=64&domain=${host}`;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function renderResults(data) {
+    hideAllStates();
+
+    if (!data.items || data.items.length === 0) {
+      emptyBox.classList.remove('hidden');
+      return;
+    }
+
+    metaLine.textContent = `Search took ${data.searchTime}s`;
+    metaLine.classList.remove('hidden');
+
+    resultsEl.innerHTML = '';
+    data.items.forEach((item, i) => {
+      const card = document.createElement('a');
+      card.href = item.link;
+      card.target = '_blank';
+      card.rel = 'noopener noreferrer';
+      card.className = 'result-card chamfer block';
+      card.style.animationDelay = `${Math.min(i * 40, 300)}ms`;
+
+      const favicon = item.favicon || faviconFor(item.link);
+      card.innerHTML = `
+        <div class="result-url-row">
+          <img src="${favicon}" onerror="this.style.visibility='hidden'">
+          <span>${escapeHtml(item.displayLink)}</span>
+        </div>
+        <span class="result-title">${escapeHtml(item.title)}</span>
+        <p class="result-snippet">${escapeHtml(item.snippet)}</p>
+      `;
+      resultsEl.appendChild(card);
+    });
+    resultsEl.classList.remove('hidden');
+
+    prevBtn.disabled = !data.prevStart;
+    nextBtn.disabled = !data.nextStart;
+    prevBtn.dataset.page = data.prevStart || '';
+    nextBtn.dataset.page = data.nextStart || '';
+    pagination.classList.remove('hidden');
+  }
+
+  function showError(message) {
+    hideAllStates();
+    errorBox.textContent = message;
+    errorBox.classList.remove('hidden');
+  }
+
+  async function runSearch(query, page) {
+    currentQuery = query;
+    showSkeletons();
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&page=${page}`);
+      const data = await res.json();
+      if (!res.ok) {
+        showError(data.error || 'Something went wrong.');
+        return;
+      }
+      renderResults(data);
+    } catch (err) {
+      showError("Couldn't complete the search. Check your connection and try again.");
+    }
+  }
+
+  function enterResultsMode() {
+    container.classList.add('is-results');
+  }
+
+  heroForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = input.value.trim();
+    if (!q) return;
+    enterResultsMode();
+    history.pushState({}, '', `/?q=${encodeURIComponent(q)}`);
+    resultsScroll.scrollTop = 0;
+    runSearch(q, 1);
+  });
+
+  prevBtn.addEventListener('click', () => {
+    if (!prevBtn.dataset.page) return;
+    resultsScroll.scrollTop = 0;
+    runSearch(currentQuery, parseInt(prevBtn.dataset.page));
+  });
+  nextBtn.addEventListener('click', () => {
+    if (!nextBtn.dataset.page) return;
+    resultsScroll.scrollTop = 0;
+    runSearch(currentQuery, parseInt(nextBtn.dataset.page));
+  });
+
+  (function initFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (q) {
+      input.value = q;
+      enterResultsMode();
+      runSearch(q, 1);
+    }
+  })();
+
+  window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (q) {
+      input.value = q;
+      enterResultsMode();
+      runSearch(q, 1);
+    } else {
+      container.classList.remove('is-results');
+      input.value = '';
+      hideAllStates();
+    }
+  });
+</script>
+</body>
+</html>
